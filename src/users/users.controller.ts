@@ -10,7 +10,6 @@ export class UsersController {
 
   @Post('')
   async signIn(@Body() signInUserDto: SignInUserDto): Promise<string> {
-    console.log(signInUserDto);
     return await this.usersService.createToken(signInUserDto);
   }
 
