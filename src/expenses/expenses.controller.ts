@@ -46,8 +46,12 @@ export class ExpensesController {
 
   @Delete(':id/delete')
   //delete expense
-  async deleteExpense(@Param('id') id: number): Promise<Expense> {
-    return await this.expensesServices.deleteExpense(id);
+  async deleteExpense(
+    @Param('id') id: number,
+    @GetUser() userParam: User,
+    session: ClientSession,
+  ): Promise<Expense> {
+    return await this.expensesServices.deleteExpense(id, userParam, session);
   }
 
   @Get('filter')

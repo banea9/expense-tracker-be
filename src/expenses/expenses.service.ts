@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model } from 'mongoose';
-import { User } from 'src/users/users.schema';
+import { ClientSession, Model, Types } from 'mongoose';
+import { User, UserDocument } from 'src/users/users.schema';
 import { Wallet, WalletDocument } from 'src/wallets/wallets.schema';
-import { WalletsService } from 'src/wallets/wallets.service';
 import { CreateExpenseDto } from './dto/CreateExpenseDto';
 import { FilterUserExpenseDto } from './dto/FilterUserExpensesDto';
 import { Expense, ExpenseDocument } from './expenses.schema';
@@ -12,7 +11,7 @@ export class ExpensesService {
   constructor(
     @InjectModel(Expense.name) private expenseModel: Model<ExpenseDocument>,
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
-    private walletService: WalletsService,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
   //fetch expenses by user and wallet
@@ -70,8 +69,58 @@ export class ExpensesService {
   }
 
   //delete expense
-  async deleteExpense(id: number): Promise<Expense> {
-    return await this.expenseModel.findByIdAndRemove(id);
+  async deleteExpense(
+    id: number,
+    userParam: User,
+    session: ClientSession,
+  ): Promise<Expense> {
+    const transaction = await this.expenseModel.db.startSession();
+    let expense;
+
+    try {
+      await transaction.withTransaction(async () => {
+        expense = await this.expenseModel
+          .findById(id)
+          .populate('user')
+          .session(session);
+        const wallet = await this.walletModel
+          .findOne({
+            expenses: { $elemMatch: { $eq: expense } },
+          })
+          .session(session);
+        const user = await this.userModel
+          .findOne({ email: userParam.email })
+          .session(session);
+        const expenseUser = await this.userModel.findOne({
+          email: expense.user.email,
+        });
+
+        if (
+          user.email !== expenseUser.email &&
+          user.email !== wallet.creatorEmail
+        )
+          throw new BadRequestException(
+            'Users can only delete their own expenses.',
+          );
+
+        await expense.delete({ session });
+
+        await this.walletModel.findOneAndUpdate(
+          { _id: wallet._id },
+          { $pull: { expenses: expense._id } },
+          { session },
+        );
+      });
+
+      await transaction.commitTransaction();
+    } catch (err) {
+      console.log(err);
+      await transaction.abortTransaction();
+      throw err;
+    } finally {
+      transaction.endSession();
+      return expense;
+    }
   }
 
   //filter expense
@@ -80,9 +129,9 @@ export class ExpensesService {
     filterUserExpenseDto: FilterUserExpenseDto,
   ): Promise<Expense[]> {
     const { fromDate, toDate, wallet } = filterUserExpenseDto;
-    const fetchedWallet = await this.walletService.getWalletByName(
-      wallet?.name,
-    );
+    const fetchedWallet = await this.walletModel.findOne({
+      name: wallet?.name,
+    });
 
     if (wallet?.name && !fetchedWallet) {
       return [];
