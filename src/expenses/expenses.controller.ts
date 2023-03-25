@@ -36,7 +36,7 @@ export class ExpensesController {
     @GetUser() user: User,
     @Body() createExpenseDto: CreateExpenseDto,
     session: ClientSession,
-  ): Promise<Expense> {
+  ): Promise<Expense | boolean> {
     return await this.expensesServices.createExpense(
       user,
       createExpenseDto,
@@ -50,7 +50,7 @@ export class ExpensesController {
     @Param('id') id: number,
     @GetUser() userParam: User,
     session: ClientSession,
-  ): Promise<Expense> {
+  ): Promise<Expense | boolean> {
     return await this.expensesServices.deleteExpense(id, userParam, session);
   }
 

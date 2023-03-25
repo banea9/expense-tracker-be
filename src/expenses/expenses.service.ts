@@ -34,13 +34,13 @@ export class ExpensesService {
     user: User,
     createExpenseDto: CreateExpenseDto,
     session: ClientSession,
-  ): Promise<Expense> {
+  ): Promise<Expense | boolean> {
     const { wallet } = createExpenseDto;
     const fetchedWallet = await this.walletModel
       .findOne({ name: wallet.name })
       .session(session)
       .exec();
-
+    let isSuccessful = false;
     let expense;
     const transaction = await this.expenseModel.db.startSession();
     try {
@@ -58,13 +58,15 @@ export class ExpensesService {
         await fetchedWallet.save({ session });
       });
 
+      isSuccessful = true;
       await transaction.commitTransaction();
     } catch (err) {
+      isSuccessful = false;
       await transaction.abortTransaction();
       throw err;
     } finally {
       transaction.endSession();
-      return expense;
+      return isSuccessful ? expense : isSuccessful;
     }
   }
 
@@ -76,6 +78,7 @@ export class ExpensesService {
   ): Promise<Expense> {
     const transaction = await this.expenseModel.db.startSession();
     let expense;
+    let isSuccessful = false;
 
     try {
       await transaction.withTransaction(async () => {
@@ -112,14 +115,15 @@ export class ExpensesService {
         );
       });
 
+      isSuccessful = true;
       await transaction.commitTransaction();
     } catch (err) {
-      console.log(err);
+      isSuccessful = false;
       await transaction.abortTransaction();
       throw err;
     } finally {
       transaction.endSession();
-      return expense;
+      return isSuccessful ? expense : isSuccessful;
     }
   }
 
@@ -128,25 +132,43 @@ export class ExpensesService {
     user: User,
     filterUserExpenseDto: FilterUserExpenseDto,
   ): Promise<Expense[]> {
-    const { fromDate, toDate, wallet } = filterUserExpenseDto;
+    const {
+      fromDate,
+      toDate,
+      wallet,
+      allWallets,
+      category,
+      subcategory,
+      sortColumn,
+      sortOrder,
+      allUsers,
+    } = filterUserExpenseDto;
+    const sortObject = {};
+    sortObject[sortColumn] = sortOrder;
+
     const fetchedWallet = await this.walletModel.findOne({
       name: wallet?.name,
     });
 
-    if (wallet?.name && !fetchedWallet) {
-      return [];
-    }
-
     const endDate = new Date(toDate).setHours(23, 59, 59);
     const query = {
-      user,
       lastModified: {
         $gte: new Date(fromDate),
         $lte: endDate,
       },
     };
-    if (wallet?.name && fetchedWallet) query['wallet'] = fetchedWallet;
 
-    return await this.expenseModel.find(query);
+    if (!allUsers) query['user'] = user;
+
+    if (!allWallets && !fetchedWallet) {
+      return [];
+    } else {
+      query['wallet'] = fetchedWallet;
+    }
+
+    if (category) query['category'] = category;
+    if (subcategory) query['subcategory'] = subcategory;
+
+    return await this.expenseModel.find(query).sort(sortObject).exec();
   }
 }
