@@ -10,6 +10,8 @@ import { User, UserDocument } from './users.schema';
 import * as bcrypt from 'bcrypt';
 import { SignInUserDto } from './dto/SignInUserDto';
 import { JwtService } from '@nestjs/jwt';
+import { IUser } from './interface/user.interface';
+import { ResetPasswordDto } from './dto/ResetPasswordDto';
 
 @Injectable()
 export class UsersService {
@@ -51,7 +53,38 @@ export class UsersService {
     return token;
   }
 
-  async getUser(id: number): Promise<User> {
-    return await this.userModel.findById(id);
+  async getUser(id: number): Promise<IUser> {
+    const user = await this.userModel.findById(id);
+    const { username, email } = user;
+    return { username, email };
+  }
+
+  async editUser(id: number, usernameParam: string): Promise<IUser> {
+    const user = await this.userModel.findById(id);
+    user.username = usernameParam;
+    const { username, email } = user;
+    return { username, email };
+  }
+
+  async resetPassword(
+    id: number,
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<boolean> {
+    const { currentPassword, newPassword, confirmPassword } = resetPasswordDto;
+    const user = await this.userModel.findById(id);
+    const hash = await bcrypt.hash(currentPassword, user.salt);
+    const newPasswordHash = await bcrypt.hash(newPassword, user.salt);
+
+    if (user.password !== hash || newPassword !== confirmPassword) {
+      throw new BadRequestException(
+        'Error occured. Please make sure that the current password is correct and that new password and current password are matching',
+      );
+    }
+
+    user.password = newPasswordHash;
+
+    await user.save();
+
+    return true;
   }
 }
