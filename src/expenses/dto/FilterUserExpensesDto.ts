@@ -12,5 +12,23 @@ export class FilterUserExpenseDto {
   toDate: Date;
 
   @IsOptional()
+  allUsers: boolean;
+
+  @IsOptional()
   wallet: Wallet;
+
+  @IsOptional()
+  allWallets: boolean;
+
+  @IsOptional()
+  category: string;
+
+  @IsOptional()
+  subcategory: string;
+
+  @IsNotEmpty()
+  sortColumn: string;
+
+  @IsNotEmpty()
+  sortOrder: string;
 }

@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
 } from '@nestjs/common';
+import { ClientSession } from 'mongoose';
 import { GetUser } from 'src/users/get-user';
 import { JwtAuthGuard } from 'src/users/jwt-auth-guard';
 import { User } from 'src/users/users.schema';
@@ -34,14 +35,23 @@ export class ExpensesController {
   async createExpense(
     @GetUser() user: User,
     @Body() createExpenseDto: CreateExpenseDto,
-  ): Promise<Expense> {
-    return await this.expensesServices.createExpense(user, createExpenseDto);
+    session: ClientSession,
+  ): Promise<Expense | boolean> {
+    return await this.expensesServices.createExpense(
+      user,
+      createExpenseDto,
+      session,
+    );
   }
 
   @Delete(':id/delete')
   //delete expense
-  async deleteExpense(@Param('id') id: number): Promise<Expense> {
-    return await this.expensesServices.deleteExpense(id);
+  async deleteExpense(
+    @Param('id') id: number,
+    @GetUser() userParam: User,
+    session: ClientSession,
+  ): Promise<Expense | boolean> {
+    return await this.expensesServices.deleteExpense(id, userParam, session);
   }
 
   @Get('filter')
