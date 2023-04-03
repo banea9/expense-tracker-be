@@ -21,19 +21,26 @@ export class UsersService {
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-    const { username, email, password, role } = createUserDto;
+    const { username, email, password, confirmPassword, role } = createUserDto;
+
+    if (password !== confirmPassword) {
+      throw new BadRequestException('Passwords must match');
+    }
+
     const newUser = new this.userModel();
     newUser.username = username;
     newUser.email = email;
     newUser.role = role;
     newUser.salt = await bcrypt.genSalt();
-    newUser.password = await bcrypt.hash(password, newUser.salt);
+    const hashedPassword = await bcrypt.hash(password, newUser.salt);
+    newUser.password = hashedPassword;
+    newUser.confirmPassword = hashedPassword;
 
     try {
       await newUser.save();
       return newUser;
     } catch (err) {
-      throw new BadRequestException('Error');
+      throw new BadRequestException(err.message);
     }
   }
 
